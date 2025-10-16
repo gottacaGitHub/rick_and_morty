@@ -16,28 +16,117 @@ class EpisodeRepository extends ServiceEntityRepository
         parent::__construct($registry, Episode::class);
     }
 
-//    /**
-//     * @return Episode[] Returns an array of Episode objects
-//     */
-//    public function findByExampleField($value): array
-//    {
-//        return $this->createQueryBuilder('e')
-//            ->andWhere('e.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->orderBy('e.id', 'ASC')
-//            ->setMaxResults(10)
-//            ->getQuery()
-//            ->getResult()
-//        ;
-//    }
+    public function save(Episode $entity, bool $flush = false): void
+    {
+        $this->getEntityManager()->persist($entity);
 
-//    public function findOneBySomeField($value): ?Episode
-//    {
-//        return $this->createQueryBuilder('e')
-//            ->andWhere('e.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->getQuery()
-//            ->getOneOrNullResult()
-//        ;
-//    }
+        if ($flush) {
+            $this->getEntityManager()->flush();
+        }
+    }
+
+    public function remove(Episode $entity, bool $flush = false): void
+    {
+        $this->getEntityManager()->remove($entity);
+
+        if ($flush) {
+            $this->getEntityManager()->flush();
+        }
+    }
+
+    public function findWithPaginationAndFilters(
+        int $offset = 0,
+        int $limit = 10,
+        ?string $season = null,
+        ?string $search = null,
+        ?int $characterId = null,
+        ?\DateTimeInterface $airDateFrom = null,
+        ?\DateTimeInterface $airDateTo = null,
+        ?string $sortBy = null,
+        ?string $sortOrder = 'ASC'
+    ): array {
+        $qb = $this->createQueryBuilder('e');
+
+        if ($season) {
+            $qb->andWhere('e.season = :season')
+                ->setParameter('season', $season);
+        }
+
+        if ($search) {
+            $qb->andWhere('e.name LIKE :search')
+                ->setParameter('search', '%' . $search . '%');
+        }
+
+        if ($characterId) {
+            $qb->innerJoin('e.characters', 'c')
+                ->andWhere('c.id = :characterId')
+                ->setParameter('characterId', $characterId);
+        }
+
+        if ($airDateFrom) {
+            $qb->andWhere('e.airDate >= :airDateFrom')
+                ->setParameter('airDateFrom', $airDateFrom);
+        }
+
+        if ($airDateTo) {
+            $qb->andWhere('e.airDate <= :airDateTo')
+                ->setParameter('airDateTo', $airDateTo);
+        }
+
+        if ($sortBy === 'air_date') {
+            $qb->orderBy('e.airDate', $sortOrder);
+        } elseif ($sortBy === 'average_rating') {
+            $qb->leftJoin('e.reviews', 'r')
+                ->addSelect('AVG(r.rating) as HIDDEN avg_rating')
+                ->groupBy('e.id')
+                ->orderBy('avg_rating', $sortOrder === 'DESC' ? 'DESC' : 'ASC');
+        } else {
+            $qb->orderBy('e.season', 'ASC')
+                ->addOrderBy('e.episode', 'ASC');
+        }
+
+        return $qb->setFirstResult($offset)
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function countWithFilters(
+        ?string $season = null,
+        ?string $search = null,
+        ?int $characterId = null,
+        ?\DateTimeInterface $airDateFrom = null,
+        ?\DateTimeInterface $airDateTo = null
+    ): int {
+        $qb = $this->createQueryBuilder('e')
+            ->select('COUNT(e.id)');
+
+        if ($season) {
+            $qb->andWhere('e.season = :season')
+                ->setParameter('season', $season);
+        }
+
+        if ($search) {
+            $qb->andWhere('e.name LIKE :search')
+                ->setParameter('search', '%' . $search . '%');
+        }
+
+        if ($characterId) {
+            $qb->innerJoin('e.characters', 'c')
+                ->andWhere('c.id = :characterId')
+                ->setParameter('characterId', $characterId);
+        }
+
+        if ($airDateFrom) {
+            $qb->andWhere('e.airDate >= :airDateFrom')
+                ->setParameter('airDateFrom', $airDateFrom);
+        }
+
+        if ($airDateTo) {
+            $qb->andWhere('e.airDate <= :airDateTo')
+                ->setParameter('airDateTo', $airDateTo);
+        }
+
+        return (int) $qb->getQuery()->getSingleScalarResult();
+    }
 }

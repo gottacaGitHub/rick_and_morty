@@ -16,28 +16,78 @@ class CharacterRepository extends ServiceEntityRepository
         parent::__construct($registry, Character::class);
     }
 
-//    /**
-//     * @return Character[] Returns an array of Character objects
-//     */
-//    public function findByExampleField($value): array
-//    {
-//        return $this->createQueryBuilder('c')
-//            ->andWhere('c.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->orderBy('c.id', 'ASC')
-//            ->setMaxResults(10)
-//            ->getQuery()
-//            ->getResult()
-//        ;
-//    }
+    public function save(Character $entity, bool $flush = false): void
+    {
+        $this->getEntityManager()->persist($entity);
 
-//    public function findOneBySomeField($value): ?Character
-//    {
-//        return $this->createQueryBuilder('c')
-//            ->andWhere('c.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->getQuery()
-//            ->getOneOrNullResult()
-//        ;
-//    }
+        if ($flush) {
+            $this->getEntityManager()->flush();
+        }
+    }
+
+    public function remove(Character $entity, bool $flush = false): void
+    {
+        $this->getEntityManager()->remove($entity);
+
+        if ($flush) {
+            $this->getEntityManager()->flush();
+        }
+    }
+
+    public function findWithPaginationAndFilters(
+        int $offset = 0,
+        int $limit = 10,
+        ?string $status = null,
+        ?string $gender = null,
+        ?string $search = null
+    ): array {
+        $qb = $this->createQueryBuilder('c');
+
+        if ($status) {
+            $qb->andWhere('c.status = :status')
+                ->setParameter('status', $status);
+        }
+
+        if ($gender) {
+            $qb->andWhere('c.gender = :gender')
+                ->setParameter('gender', $gender);
+        }
+
+        if ($search) {
+            $qb->andWhere('c.name LIKE :search')
+                ->setParameter('search', '%' . $search . '%');
+        }
+
+        return $qb->orderBy('c.name', 'ASC')
+            ->setFirstResult($offset)
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function countWithFilters(
+        ?string $status = null,
+        ?string $gender = null,
+        ?string $search = null
+    ): int {
+        $qb = $this->createQueryBuilder('c')
+            ->select('COUNT(c.id)');
+
+        if ($status) {
+            $qb->andWhere('c.status = :status')
+                ->setParameter('status', $status);
+        }
+
+        if ($gender) {
+            $qb->andWhere('c.gender = :gender')
+                ->setParameter('gender', $gender);
+        }
+
+        if ($search) {
+            $qb->andWhere('c.name LIKE :search')
+                ->setParameter('search', '%' . $search . '%');
+        }
+
+        return (int) $qb->getQuery()->getSingleScalarResult();
+    }
 }

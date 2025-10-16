@@ -2,100 +2,86 @@
 
 namespace App\Service;
 
-use App\Entity\Character;
-use App\Entity\Episode;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
+use Psr\Log\LoggerInterface;
 
 class RickAndMortyApiService
 {
-    private HttpClientInterface $httpClient;
-    private EntityManagerInterface $entityManager;
+    private const BASE_URL = 'https://rickandmortyapi.com/api';
 
-    public function __construct(HttpClientInterface $httpClient, EntityManagerInterface $entityManager)
-    {
-        $this->httpClient = $httpClient;
-        $this->entityManager = $entityManager;
+    public function __construct(
+        private HttpClientInterface $httpClient,
+        private LoggerInterface $logger
+    ) {
     }
 
-    public function importCharacters(): void
+    public function getAllCharacters(): array
     {
+        $characters = [];
         $page = 1;
-        do {
-            $response = $this->httpClient->request('GET', 'https://rickandmortyapi.com/api/character', [
-                'query' => ['page' => $page]
-            ]);
+        $hasNextPage = true;
 
-            $data = $response->toArray();
+        while ($hasNextPage) {
+            try {
+                $response = $this->httpClient->request('GET', self::BASE_URL . '/character', [
+                    'query' => ['page' => $page]
+                ]);
 
-            foreach ($data['results'] as $characterData) {
-                $character = $this->entityManager->getRepository(Character::class)
-                    ->findOneBy(['url' => $characterData['url']]);
+                $data = $response->toArray();
 
-                if (!$character) {
-                    $character = new Character();
-                    $character->setName($characterData['name']);
-                    $character->setGender($characterData['gender']);
-                    $character->setStatus($characterData['status']);
-                    $character->setUrl($characterData['url']);
+                $characters = array_merge($characters, $data['results']);
 
-                    $this->entityManager->persist($character);
-                }
-            }
+                $hasNextPage = !empty($data['info']['next']);
+                $page++;
+                usleep(200000); // 200ms
 
-            $this->entityManager->flush();
-            $page++;
-
-        } while ($data['info']['next'] !== null);
-    }
-
-    public function importEpisodes(): void
-    {
-        $page = 1;
-        do {
-            $response = $this->httpClient->request('GET', 'https://rickandmortyapi.com/api/episode', [
-                'query' => ['page' => $page]
-            ]);
-
-            $data = $response->toArray();
-
-            foreach ($data['results'] as $episodeData) {
-                $episode = $this->entityManager->getRepository(Episode::class)
-                    ->findOneBy(['url' => $episodeData['url']]);
-
-                if (!$episode) {
-                    $episode = new Episode();
-                    $episode->setName($episodeData['name']);
-                    $episode->setAirDate(new \DateTime($episodeData['air_date']));
-
-                    // Парсим сезон и номер эпизода
-                    preg_match('/S(\d+)E(\d+)/', $episodeData['episode'], $matches);
-                    $episode->setSeason('Season ' . $matches[1]);
-                    $episode->setEpisodeNumber('Episode ' . $matches[2]);
-                    $episode->setUrl($episodeData['url']);
-
-                    $this->entityManager->persist($episode);
-
-                    // Добавляем персонажей к эпизоду
-                    $this->addCharactersToEpisode($episode, $episodeData['characters']);
-                }
-            }
-
-            $this->entityManager->flush();
-            $page++;
-
-        } while ($data['info']['next'] !== null);
-    }
-
-    private function addCharactersToEpisode(Episode $episode, array $characterUrls): void
-    {
-        foreach ($characterUrls as $characterUrl) {
-            $character = $this->entityManager->getRepository(Character::class)
-                ->findOneBy(['url' => $characterUrl]);
-
-            if ($character && !$episode->getCharacters()->contains($character)) {
-                $episode->addCharacter($character);
+            } catch (\Exception $e) {
+                $this->logger->error($e->getMessage());
+                break;
             }
         }
+
+        return $characters;
+    }
+
+    public function getAllEpisodes(): array
+    {
+        $episodes = [];
+        $page = 1;
+        $hasNextPage = true;
+
+        while ($hasNextPage) {
+            try {
+                $response = $this->httpClient->request('GET', self::BASE_URL . '/episode', [
+                    'query' => ['page' => $page]
+                ]);
+
+                $data = $response->toArray();
+
+                $episodes = array_merge($episodes, $data['results']);
+
+                $hasNextPage = !empty($data['info']['next']);
+                $page++;
+                usleep(200000);
+
+            } catch (\Exception $e) {
+                $this->logger->error($e->getMessage());
+                break;
+            }
+        }
+
+        return $episodes;
+    }
+
+    /**
+     * Парсит номер сезона и эпизода из строки эпизода
+     */
+    public function parseSeasonAndEpisode(string $episodeCode): array
+    {
+        if (preg_match('/S(\d+)E(\d+)/', $episodeCode, $matches)) {
+            return [(int)$matches[1], (int)$matches[2]];
+        }
+        return [1, 1];
     }
 }

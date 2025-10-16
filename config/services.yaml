@@ -16,19 +16,63 @@ services:
     App\:
         resource: '../src/'
 
-    App\Service\RickAndMortyApiService:
-        arguments:
-            - '@http_client'
-            - '@doctrine.orm.entity_manager'
-
-    App\Service\RatingService:
-        arguments:
-            $ratingMethod: '%env(RATING_METHOD)%'
-
-    App\Service\ReviewGeneratorService:
-        arguments:
-            - '@doctrine.orm.entity_manager'
-            - '@App\Service\RatingService'
-
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+    App\Service\RickAndMortyApiService:
+        arguments:
+            $httpClient: '@http_client'
+
+    App\Command\ImportRickAndMortyDataCommand:
+        arguments:
+            $entityManager: '@doctrine.orm.entity_manager'
+            $apiService: '@App\Service\RickAndMortyApiService'
+            $characterRepository: '@App\Repository\CharacterRepository'
+            $episodeRepository: '@App\Repository\EpisodeRepository'
+            $reviewRepository: '@App\Repository\ReviewRepository'
+            $serializer: '@serializer'
+        tags: [ 'console.command' ]
+
+    App\Strategy\RandomRatingStrategy:
+        public: false
+        tags: [ 'app.rating_strategy' ]
+
+    App\Strategy\SentimentRatingStrategy:
+        public: false
+        tags: [ 'app.rating_strategy' ]
+
+    App\Service\RatingCalculator:
+        arguments:
+            $defaultStrategy: '%env(RATING_CALCULATOR_STRATEGY)%'
+        calls:
+            -   method: addStrategy
+                arguments:
+                    $name: 'random'
+                    $strategy: '@App\Strategy\RandomRatingStrategy'
+            -   method: addStrategy
+                arguments:
+                    $name: 'sentiment'
+                    $strategy: '@App\Strategy\SentimentRatingStrategy'
+
+    App\Service\ReviewService:
+        arguments:
+            $entityManager: '@doctrine.orm.entity_manager'
+            $reviewRepository: '@App\Repository\ReviewRepository'
+            $validator: '@validator'
+            $ratingCalculator: '@App\Service\RatingCalculator'
+
+    App\Command\CalculateRatingsCommand:
+        arguments:
+            $reviewService: '@App\Service\ReviewService'
+            $ratingCalculator: '@App\Service\RatingCalculator'
+            $logger: '@logger'
+        tags: [ 'console.command' ]
+
+    App\EntityListener\ReviewListener:
+        arguments:
+            $ratingCalculator: '@App\Service\RatingCalculator'
+
+    App\Service\DtoTransformer:
+        arguments: [ ]
+
+
+

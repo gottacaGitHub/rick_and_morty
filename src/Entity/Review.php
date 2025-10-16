@@ -3,8 +3,7 @@
 namespace App\Entity;
 
 use App\Repository\ReviewRepository;
-use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: ReviewRepository::class)]
@@ -15,28 +14,29 @@ class Review
     #[ORM\Column]
     private ?int $id = null;
 
-    /**
-     * @var Collection<int, Episode>
-     */
-    #[ORM\ManyToOne(targetEntity: Episode::class, inversedBy: 'reviews')]
+    #[ORM\ManyToOne(inversedBy: 'reviews')]
     #[ORM\JoinColumn(nullable: false)]
     private ?Episode $episode = null;
 
-    #[ORM\Column(length: 255, nullable: true)]
+    #[ORM\Column(length: 255)]
     private ?string $author = null;
 
-    #[ORM\Column(length: 255, nullable: true)]
+    #[ORM\Column(type: Types::TEXT)]
     private ?string $text = null;
 
     #[ORM\Column(nullable: true)]
-    private ?\DateTimeInterface $publicationDate = null;
+    private ?int $rating = null;
 
-    #[ORM\Column(nullable: true)]
-    private ?float $rating = null;
+    #[ORM\Column]
+    private ?\DateTimeImmutable $publishedAt;
+
+    #[ORM\Column]
+    private ?\DateTimeImmutable $createdAt;
 
     public function __construct()
     {
-        $this->publicationDate = new \DateTime();
+        $this->publishedAt = new \DateTimeImmutable();
+        $this->createdAt = new \DateTimeImmutable();
     }
 
     public function getId(): ?int
@@ -44,21 +44,14 @@ class Review
         return $this->id;
     }
 
-    public function addEpisode(Episode $episode): static
+    public function getEpisode(): ?Episode
     {
-        if (!$this->episode->contains($episode)) {
-            $this->episode->add($episode);
-            $episode->addReview($this);
-        }
-
-        return $this;
+        return $this->episode;
     }
 
-    public function removeEpisode(Episode $episode): static
+    public function setEpisode(?Episode $episode): static
     {
-        if ($this->episode->removeElement($episode)) {
-            $episode->removeReview($this);
-        }
+        $this->episode = $episode;
 
         return $this;
     }
@@ -68,7 +61,7 @@ class Review
         return $this->author;
     }
 
-    public function setAuthor(?string $author): static
+    public function setAuthor(string $author): static
     {
         $this->author = $author;
 
@@ -80,35 +73,46 @@ class Review
         return $this->text;
     }
 
-    public function setText(?string $text): static
+    public function setText(string $text): static
     {
         $this->text = $text;
 
         return $this;
     }
 
-    public function getPublicationDate(): ?\DateTime
-    {
-        return $this->publicationDate;
-    }
-
-    public function setPublicationDate(?\DateTime $publicationDate): static
-    {
-        $this->publicationDate = $publicationDate;
-
-        return $this;
-    }
-
-    public function getRating(): ?float
+    public function getRating(): ?int
     {
         return $this->rating;
     }
 
-    public function setRating(?float $rating): static
+    public function setRating(?int $rating): static
     {
         $this->rating = $rating;
 
         return $this;
     }
 
+    public function getPublishedAt(): ?\DateTimeImmutable
+    {
+        return $this->publishedAt;
+    }
+
+    public function setPublishedAt(\DateTimeImmutable $publishedAt): static
+    {
+        $this->publishedAt = $publishedAt;
+
+        return $this;
+    }
+
+    public function getCreatedAt(): ?\DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
+
+    public function setCreatedAt(\DateTimeImmutable $createdAt): static
+    {
+        $this->createdAt = $createdAt;
+
+        return $this;
+    }
 }
